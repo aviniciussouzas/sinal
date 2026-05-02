@@ -221,10 +221,33 @@ Não constitui controle de jornada, registro de ponto ou reconhecimento de vínc
 
 ## Roadmap
 
-- [x] **v1** — Check-in semanal, escala 0–5, parceiro da semana, edição única até quarta, dashboard coletivo, tema dark/light
-- [ ] **v2** — Aba de membros cadastrados, visibilidade de ausentes, histórico de parceiros por pessoa
-- [ ] **v3** — Notificação automática toda segunda (WhatsApp ou e-mail)
-- [ ] **v4** — Backlog de projetos extras: gestor cadastra, parceiro se voluntaria
+**V2 — entregue**
+- [x] Dashboard com malha geométrica canvas por nível
+- [x] Painel de parceiros da semana
+- [x] Cards de histórico mínimos
+- [x] Bloqueio do radar antes do sinal
+- [x] Campo de apelido opcional
+- [x] Chips clicáveis no campo de extras
+- [x] Linguagem do segundo sinal
+- [x] Acessibilidade dark mode
+- [x] Landing page
+
+**V3 — planejado**
+- [ ] Notificação automática toda segunda
+- [ ] Alerta na quarta para nível 4–5 com parceiro disponível
+- [ ] Aba de membros cadastrados
+- [ ] Histórico de parceiros por pessoa
+
+**V4 — futuro**
+- [ ] Autenticação leve (SSO Google)
+- [ ] Multi-time
+- [ ] Backlog de projetos extras
+
+---
+
+## Objeto conceitual
+ 
+O **SN-01 Capacity Transmitter** é um objeto físico conceitual que representa o protocolo em forma tangível. Um dial de 0–5 com a escala cromática, botões TX e RX, display com o estado atual. Não existe — mas poderia
 
 ---
 
