@@ -11,6 +11,16 @@ const LEVELS = [
   { num: 5, label: 'limite', name: 'No limite', desc: 'Semana tomada. Sem espaço para nada novo.', pill: 'Sem espaço agora', parceiro: false, color: '#EF4444', bg: 'rgba(239,68,68,0.1)', glow: 'rgba(239,68,68,0.07)' },
 ]
 
+const EXTRAS_OPCOES = [
+  'Ajuste simples',
+  'Ajuste carrossel',
+  'Troca de imagem',
+  'Ajuste de vídeo',
+  'Criação de moodboard',
+  'Apresentação',
+  'BV institucional',
+]
+
 function getWeekStr() {
   const now = new Date()
   const day = now.getDay()
@@ -21,7 +31,6 @@ function getWeekStr() {
   return `${fmt(mon)} – ${fmt(fri)}/${fri.getFullYear()}`
 }
 
-// Retorna true se hoje for quinta (4) ou sexta (5) ou fim de semana
 function edicaoBloqueadaPorData() {
   const day = new Date().getDay()
   return day >= 4 || day === 0
@@ -40,9 +49,11 @@ type SinalExistente = {
 export default function Home() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [nome, setNome] = useState('')
+  const [apelido, setApelido] = useState('')
   const [nivel, setNivel] = useState<number | null>(null)
   const [clientes, setClientes] = useState('')
   const [extras, setExtras] = useState('')
+  const [extrasChips, setExtrasChips] = useState<string[]>([])
   const [estado, setEstado] = useState<Estado>('idle')
   const [sinalAtual, setSinalAtual] = useState<SinalExistente | null>(null)
   const [resultado, setResultado] = useState<{ parceiro: boolean; versao: string } | null>(null)
@@ -54,42 +65,56 @@ export default function Home() {
 
   const isDark = theme === 'dark'
   const ink = isDark ? '#F2F2F2' : '#111111'
-  const ink2 = isDark ? '#999999' : '#777777'
-  const ink3 = isDark ? '#888888' : '#999999'
-  const inkLabel = isDark ? '#888888' : '#888888'
-  const inkHint = isDark ? '#666666' : '#AAAAAA'
+  const ink2 = isDark ? '#AAAAAA' : '#666666'       // secundário — corrigido
+  const ink3 = isDark ? '#888888' : '#888888'        // labels — corrigido
+  const inkHint = isDark ? '#777777' : '#AAAAAA'     // hints — corrigido
+  const inkPlaceholder = isDark ? '#555555' : '#BBBBBB' // placeholders — corrigido
   const surface = isDark ? '#111111' : '#FFFFFF'
-  const surface2 = isDark ? '#181818' : '#F5F5F3'
-  const border = isDark ? '#222222' : '#E8E8E4'
-  const border2 = isDark ? '#2E2E2E' : '#D8D8D4'
+  const border = isDark ? '#242424' : '#E8E8E4'
+  const border2 = isDark ? '#303030' : '#D8D8D4'
   const bgPage = isDark ? '#0A0A0A' : '#F5F5F3'
 
+  // Busca sinal ao digitar nome
   useEffect(() => {
     if (nomeTimer.current) clearTimeout(nomeTimer.current)
     if (nome.trim().length < 2) { setEstado('idle'); setSinalAtual(null); return }
     setEstado('buscando')
     nomeTimer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/dados?nome=${encodeURIComponent(nome.trim())}&semana=${encodeURIComponent(semana)}`)
+        const id = apelido.trim() || nome.trim()
+        const res = await fetch(`/api/dados?nome=${encodeURIComponent(id)}&semana=${encodeURIComponent(semana)}`)
         const data = await res.json()
         if (data.sinalExistente) {
           setSinalAtual(data.sinalExistente)
-          if (!data.podeEditar) {
-            setEstado('bloqueado')
-          } else if (edicaoBloqueadaPorData()) {
-            setEstado('bloqueado-data')
-          } else {
-            setEstado('editar')
-          }
+          if (!data.podeEditar) setEstado('bloqueado')
+          else if (edicaoBloqueadaPorData()) setEstado('bloqueado-data')
+          else setEstado('editar')
         } else {
           setSinalAtual(null)
           setEstado('novo')
         }
       } catch { setEstado('novo') }
-    }, 600)
-  }, [nome, semana])
+    }, 700)
+  }, [nome, apelido, semana])
 
-  function selectLevel(n: number) { setNivel(n); setGlowColor(LEVELS[n].glow) }
+  function selectLevel(n: number) {
+    setNivel(n)
+    setGlowColor(LEVELS[n].glow)
+  }
+
+  function toggleChip(chip: string) {
+    setExtrasChips(prev =>
+      prev.includes(chip) ? prev.filter(c => c !== chip) : [...prev, chip]
+    )
+  }
+
+  // Monta o campo extras combinando chips + texto livre
+  function getExtrasValue() {
+    const chipStr = extrasChips.join(' · ')
+    const livreTrimmed = extras.trim()
+    if (chipStr && livreTrimmed) return `${chipStr} · ${livreTrimmed}`
+    return chipStr || livreTrimmed
+  }
 
   function carregarSinalAtual() {
     if (!sinalAtual) return
@@ -102,25 +127,38 @@ export default function Home() {
   async function handleSubmit() {
     if (!nome.trim() || nivel === null) return
     setLoading(true)
+    const identificador = apelido.trim() || nome.trim()
     try {
       const res = await fetch('/api/checkin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: nome.trim(), semana, nivel, clientes, extras }),
+        body: JSON.stringify({
+          nome: identificador,
+          semana,
+          nivel,
+          clientes,
+          extras: getExtrasValue(),
+        }),
       })
       const data = await res.json()
-      if (data.success) { setResultado({ parceiro: data.parceiro, versao: data.versao }); setEstado('sucesso') }
+      if (data.success) {
+        setResultado({ parceiro: data.parceiro, versao: data.versao })
+        setEstado('sucesso')
+      }
     } catch { /* silencioso */ }
     setLoading(false)
   }
 
-  const primeiroNome = nome.trim().split(' ')[0]
+  const identificador = apelido.trim() || nome.trim()
+  const primeiroNome = identificador.split(' ')[0]
   const podeEnviar = nome.trim().length >= 2 && nivel !== null && (estado === 'novo' || estado === 'editar')
+  const mostrarFormulario = estado === 'novo' || estado === 'editar'
 
   return (
-    <main style={{ background: bgPage, minHeight: '100vh' }}
-      className="flex items-center justify-center px-6 py-12 relative overflow-hidden transition-colors duration-500">
-
+    <main
+      style={{ background: bgPage, minHeight: '100vh' }}
+      className="flex items-center justify-center px-6 py-12 relative overflow-hidden transition-colors duration-500"
+    >
       {/* Glow */}
       <div className="fixed pointer-events-none rounded-full transition-all duration-1000"
         style={{ width: 800, height: 800, top: -350, right: -300, background: `radial-gradient(circle, ${glowColor} 0%, transparent 70%)` }} />
@@ -133,20 +171,29 @@ export default function Home() {
 
         {/* TOPBAR */}
         <div className="flex items-center justify-between mb-16" style={{ animation: 'slideDown 0.5s cubic-bezier(0.16,1,0.3,1) 0.05s both' }}>
-          <span style={{ color: ink }} className="text-[13px] font-bold tracking-[0.16em] uppercase transition-colors duration-500">
-            SINAL<span style={{ color: '#A78BFA' }}>.</span>
-          </span>
+          <div>
+            <span style={{ color: ink }} className="text-[13px] font-bold tracking-[0.16em] uppercase transition-colors duration-500">
+              SINAL<span style={{ color: '#A78BFA' }}>.</span>
+            </span>
+            <p className="text-[9px] font-bold tracking-[0.14em] uppercase mt-1 transition-colors duration-500" style={{ color: ink3 }}>
+              Dar o sinal
+            </p>
+          </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-semibold tracking-wide transition-colors duration-500"
               style={{ background: surface, border: `1px solid ${border2}`, color: ink3 }}>
               <span className="w-[5px] h-[5px] rounded-full bg-[#A78BFA] animate-pulse" />
               {semana}
             </div>
-            <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-              className="relative w-[44px] h-[25px] rounded-full cursor-pointer transition-all duration-400"
-              style={{ background: surface, border: `1px solid ${border2}` }} title="Alternar tema">
-              <div className="absolute top-[3px] left-[3px] w-[17px] h-[17px] rounded-full flex items-center justify-center text-[9px] transition-all duration-[350ms]"
-                style={{ background: ink, color: bgPage, transform: !isDark ? 'translateX(19px)' : 'translateX(0)' }}>
+            {/* Theme switch — menos proeminente */}
+            <button
+              onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+              className="relative w-[36px] h-[20px] rounded-full cursor-pointer transition-all duration-400 opacity-40 hover:opacity-80"
+              style={{ background: surface, border: `1px solid ${border2}` }}
+              title="Alternar tema"
+            >
+              <div className="absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full flex items-center justify-center text-[8px] transition-all duration-[350ms]"
+                style={{ background: ink, color: bgPage, transform: !isDark ? 'translateX(16px)' : 'translateX(0)' }}>
                 {isDark ? '☽' : '☀'}
               </div>
             </button>
@@ -158,7 +205,7 @@ export default function Home() {
           <div className="flex flex-col items-center text-center gap-5 py-16" style={{ animation: 'rise 0.5s cubic-bezier(0.16,1,0.3,1) both' }}>
             <div className="w-[76px] h-[76px] rounded-full border-[1.5px] flex items-center justify-center text-[1.8rem]"
               style={{ borderColor: L?.color, color: L?.color, animation: 'popIn 0.55s cubic-bezier(0.16,1,0.3,1) both' }}>✦</div>
-            <div style={{ color: ink }} className="text-[2rem] font-bold tracking-tight transition-colors duration-500">
+            <div style={{ color: ink }} className="text-[2rem] font-bold tracking-tight">
               Sinal {resultado.versao === 'atualizado' ? 'atualizado.' : 'enviado.'}
             </div>
             <p className="text-[13px] leading-relaxed max-w-[300px]" style={{ color: ink2 }}>
@@ -175,8 +222,10 @@ export default function Home() {
                 Você ainda pode atualizar seu sinal uma vez até quarta-feira.
               </p>
             )}
-            <a href="/dashboard" className="mt-4 text-[10px] font-bold tracking-[0.1em] uppercase transition-colors duration-200 cursor-pointer"
-              style={{ color: inkHint }}>
+            {/* Radar só aparece APÓS o sinal */}
+            <a href="/dashboard"
+              className="mt-4 text-[11px] font-bold tracking-[0.1em] uppercase transition-all duration-200 cursor-pointer px-5 py-2.5 rounded-xl border"
+              style={{ color: ink3, borderColor: border2, background: surface }}>
               Ver radar da equipe →
             </a>
           </div>
@@ -186,16 +235,42 @@ export default function Home() {
         {estado !== 'sucesso' && (
           <>
             {/* NOME */}
-            <div className="mb-12" style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.15s both' }}>
-              <p className="text-[9px] font-bold tracking-[0.16em] uppercase mb-3 transition-colors duration-500" style={{ color: inkLabel }}>
+            <div className="mb-10" style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.15s both' }}>
+              <p className="text-[9px] font-bold tracking-[0.16em] uppercase mb-3" style={{ color: ink3 }}>
                 Quem está dando o sinal
               </p>
-              <input type="text" value={nome} onChange={e => setNome(e.target.value)}
-                placeholder="seu nome" autoComplete="off" spellCheck={false}
-                className="w-full bg-transparent border-none outline-none text-[3rem] font-bold tracking-[-0.03em] transition-colors duration-500"
-                style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink, caretColor: '#A78BFA' }} />
-              <div className="mt-4 h-px transition-colors duration-500" style={{ background: border2 }} />
+              <input
+                type="text" value={nome} onChange={e => setNome(e.target.value)}
+                placeholder="seu nome completo"
+                autoComplete="off" spellCheck={false}
+                className="w-full bg-transparent border-none outline-none text-[2.8rem] font-bold tracking-[-0.03em] transition-colors duration-500"
+                style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink, caretColor: '#A78BFA' }}
+              />
+              <div className="mt-4 h-px" style={{ background: border2 }} />
+
+              {/* Apelido — aparece após digitar nome */}
+              {nome.trim().length >= 2 && (
+                <div className="mt-3" style={{ animation: 'rise 0.3s cubic-bezier(0.16,1,0.3,1) both' }}>
+                  <input
+                    type="text" value={apelido} onChange={e => setApelido(e.target.value)}
+                    placeholder="Como quer ser chamado? ex: Ju, Pê, João S."
+                    autoComplete="off" spellCheck={false}
+                    className="w-full bg-transparent border-none outline-none text-[13px] font-medium transition-colors duration-500"
+                    style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink2, caretColor: '#A78BFA' }}
+                  />
+                </div>
+              )}
             </div>
+
+            {/* ESTADO — buscando */}
+            {estado === 'buscando' && (
+              <div className="mb-8 flex items-center gap-3" style={{ animation: 'rise 0.3s cubic-bezier(0.16,1,0.3,1) both' }}>
+                <span className="w-2 h-2 rounded-full bg-[#A78BFA] animate-pulse flex-shrink-0" />
+                <p className="text-[13px] font-semibold" style={{ color: '#A78BFA' }}>
+                  Verificando seu sinal desta semana...
+                </p>
+              </div>
+            )}
 
             {/* BLOQUEADO — já editou */}
             {estado === 'bloqueado' && sinalAtual && (
@@ -243,7 +318,7 @@ export default function Home() {
                     <div>
                       <p className="text-[13px] font-bold" style={{ color: LEVELS[sinalAtual.nivel].color }}>{LEVELS[sinalAtual.nivel].name}</p>
                       <p className="text-[11px] mt-1" style={{ color: ink2 }}>Sua agenda mudou? Atualize até quarta.</p>
-                      <p className="text-[10px] mt-0.5" style={{ color: ink3 }}>Entregas, entradas e saídas de projeto contam.</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: inkHint }}>Entregas, entradas e saídas de projeto contam.</p>
                     </div>
                   </div>
                   <button onClick={carregarSinalAtual}
@@ -256,107 +331,135 @@ export default function Home() {
             )}
 
             {/* LEVELS */}
-            {(estado === 'novo' || estado === 'editar') && (
-              <div className="mb-4" style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.25s both' }}>
-                <p className="text-[9px] font-bold tracking-[0.16em] uppercase mb-3 transition-colors duration-500" style={{ color: inkLabel }}>
-                  {estado === 'editar' ? 'Atualizar — como está sua semana' : 'Como está sua semana'}
-                </p>
-                <div className="flex gap-[5px] p-[5px] rounded-[18px] transition-colors duration-500"
-                  style={{ background: surface, border: `1px solid ${border}` }}>
-                  {LEVELS.map((lv) => (
-                    <button key={lv.num} onClick={() => selectLevel(lv.num)}
-                      className="flex-1 rounded-[13px] py-[18px] px-0.5 text-center cursor-pointer border transition-all duration-[220ms] ease-out"
-                      style={{
-                        background: nivel === lv.num ? lv.bg : 'transparent',
-                        borderColor: nivel === lv.num ? lv.color : 'transparent',
-                        color: nivel === lv.num ? lv.color : ink2,
-                        transform: nivel === lv.num ? 'translateY(-3px)' : 'translateY(0)',
-                        boxShadow: nivel === lv.num ? '0 8px 24px -6px rgba(0,0,0,0.2)' : 'none',
-                      }}>
-                      <span className="block text-[1.6rem] font-bold leading-none">{lv.num}</span>
-                      <span className="block text-[8px] font-bold tracking-[0.07em] uppercase mt-[6px] opacity-70">{lv.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* STATE BOX */}
-                {nivel !== null && L && (
-                  <div className="mt-[10px] rounded-2xl p-5 border flex items-center gap-5 transition-all duration-400"
-                    style={{ background: L.bg, borderColor: L.color, animation: 'rise 0.35s cubic-bezier(0.16,1,0.3,1) both' }}>
-                    <span className="text-[3.5rem] font-bold leading-none flex-shrink-0 w-[60px] text-center" style={{ color: L.color }}>{nivel}</span>
-                    <div className="w-px h-10 flex-shrink-0" style={{ background: border2 }} />
-                    <div>
-                      <p className="text-[13px] font-bold mb-1" style={{ color: L.color }}>{L.name}</p>
-                      <p className="text-[11.5px] leading-[1.55]" style={{ color: ink2 }}>{L.desc}</p>
-                      <span className="inline-flex items-center gap-1 text-[8.5px] font-bold tracking-[0.1em] uppercase px-[10px] py-[3px] rounded-full border mt-2"
-                        style={{ color: L.color, borderColor: L.color, background: L.bg }}>
-                        <span className="w-1 h-1 rounded-full bg-current" />{L.pill}
-                      </span>
-                    </div>
+            {mostrarFormulario && (
+              <>
+                <div className="mb-4" style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.25s both' }}>
+                  <p className="text-[9px] font-bold tracking-[0.16em] uppercase mb-3" style={{ color: ink3 }}>
+                    {estado === 'editar' ? 'Atualizar — como está sua semana' : 'Como está sua semana'}
+                  </p>
+                  <div className="flex gap-[5px] p-[5px] rounded-[18px] transition-colors duration-500"
+                    style={{ background: surface, border: `1px solid ${border}` }}>
+                    {LEVELS.map((lv) => (
+                      <button key={lv.num} onClick={() => selectLevel(lv.num)}
+                        className="flex-1 rounded-[13px] py-[18px] px-0.5 text-center cursor-pointer border transition-all duration-[220ms] ease-out"
+                        style={{
+                          background: nivel === lv.num ? lv.bg : 'transparent',
+                          borderColor: nivel === lv.num ? lv.color : 'transparent',
+                          color: nivel === lv.num ? lv.color : ink2,
+                          transform: nivel === lv.num ? 'translateY(-3px)' : 'translateY(0)',
+                          boxShadow: nivel === lv.num ? '0 8px 24px -6px rgba(0,0,0,0.2)' : 'none',
+                        }}>
+                        <span className="block text-[1.6rem] font-bold leading-none">{lv.num}</span>
+                        <span className="block text-[8px] font-bold tracking-[0.07em] uppercase mt-[6px] opacity-70">{lv.label}</span>
+                      </button>
+                    ))}
                   </div>
-                )}
-              </div>
-            )}
 
-            {/* EXTRAS */}
-            {(estado === 'novo' || estado === 'editar') && (
-              <div className="grid grid-cols-2 gap-2 mb-5" style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.35s both' }}>
-                <div className="rounded-2xl p-[18px] transition-colors duration-500"
-                  style={{ background: surface, border: `1px solid ${border}` }}>
-                  <p className="text-[9px] font-bold tracking-[0.14em] uppercase mb-1 transition-colors duration-500" style={{ color: inkLabel }}>
-                    Projetos em andamento
-                  </p>
-                  {/* HINT anti ocupação defensiva */}
-                  <p className="text-[9px] mb-2 leading-relaxed" style={{ color: inkHint }}>
-                    Só o que está sendo executado agora. O que pode chegar não conta.
-                  </p>
-                  <textarea value={clientes} onChange={e => setClientes(e.target.value)}
-                    placeholder="Lubrizol, Infra, campanha X..." rows={3}
-                    className="w-full bg-transparent border-none outline-none text-[12px] font-normal leading-[1.65] resize-none transition-colors duration-500"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink }} />
+                  {/* STATE BOX */}
+                  {nivel !== null && L && (
+                    <div className="mt-[10px] rounded-2xl p-5 border flex items-center gap-5 transition-all duration-400"
+                      style={{ background: L.bg, borderColor: L.color, animation: 'rise 0.35s cubic-bezier(0.16,1,0.3,1) both' }}>
+                      <span className="text-[3.5rem] font-bold leading-none flex-shrink-0 w-[60px] text-center" style={{ color: L.color }}>{nivel}</span>
+                      <div className="w-px h-10 flex-shrink-0" style={{ background: border2 }} />
+                      <div>
+                        <p className="text-[13px] font-bold mb-1" style={{ color: L.color }}>{L.name}</p>
+                        <p className="text-[11.5px] leading-[1.55]" style={{ color: ink2 }}>{L.desc}</p>
+                        <span className="inline-flex items-center gap-1 text-[8.5px] font-bold tracking-[0.1em] uppercase px-[10px] py-[3px] rounded-full border mt-2"
+                          style={{ color: L.color, borderColor: L.color, background: L.bg }}>
+                          <span className="w-1 h-1 rounded-full bg-current" />{L.pill}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="rounded-2xl p-[18px] transition-colors duration-500"
-                  style={{ background: surface, border: `1px solid ${border}` }}>
-                  <p className="text-[9px] font-bold tracking-[0.14em] uppercase mb-1 transition-colors duration-500" style={{ color: inkLabel }}>
-                    Espaço para extras
-                  </p>
-                  <p className="text-[9px] mb-2 leading-relaxed" style={{ color: inkHint }}>
-                    Projetos ou peças que consegue absorver esta semana.
-                  </p>
-                  <textarea value={extras} onChange={e => setExtras(e.target.value)}
-                    placeholder="1 peça pequena, nada..." rows={3}
-                    className="w-full bg-transparent border-none outline-none text-[12px] font-normal leading-[1.65] resize-none transition-colors duration-500"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink }} />
-                </div>
-              </div>
-            )}
 
-            {/* SUBMIT */}
-            {(estado === 'novo' || estado === 'editar') && (
-              <div style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.43s both' }}>
-                <button onClick={handleSubmit} disabled={!podeEnviar || loading}
-                  className="w-full rounded-2xl px-6 py-[18px] flex items-center justify-between relative overflow-hidden group transition-all duration-300"
-                  style={{ background: '#8B5CF6', opacity: podeEnviar && !loading ? 1 : 0.2, cursor: podeEnviar && !loading ? 'pointer' : 'not-allowed' }}>
-                  <span className="text-[14px] font-bold tracking-[0.05em] text-white relative z-10">
-                    {loading ? 'Enviando...' : estado === 'editar' ? 'Atualizar sinal' : 'Enviar sinal'}
-                  </span>
-                  <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-[16px] text-white transition-transform duration-300 group-hover:rotate-45 relative z-10">↗</div>
-                </button>
-                <p className="mt-3 text-[9.5px] text-center leading-[1.8] transition-colors duration-500" style={{ color: inkHint }}>
-                  Ferramenta de uso voluntário entre prestadores de serviço independentes.<br />
-                  Não constitui controle de jornada, registro de ponto ou reconhecimento de vínculo empregatício.
-                </p>
-                <a href="/dashboard" className="flex items-center justify-center mt-3 text-[10px] font-bold tracking-[0.1em] uppercase transition-colors duration-200" style={{ color: inkHint }}>
-                  Ver radar da equipe →
-                </a>
-              </div>
+                {/* CAMPOS */}
+                <div className="grid grid-cols-2 gap-2 mb-5" style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.35s both' }}>
+
+                  {/* PROJETOS EM ANDAMENTO */}
+                  <div className="rounded-2xl p-[18px] transition-colors duration-500"
+                    style={{ background: surface, border: `1px solid ${border}` }}>
+                    <p className="text-[9px] font-bold tracking-[0.14em] uppercase mb-1" style={{ color: ink3 }}>
+                      Projetos em andamento
+                    </p>
+                    <p className="text-[9px] mb-2 leading-relaxed" style={{ color: inkHint }}>
+                      Formato: [Cliente] job resumido
+                    </p>
+                    <textarea
+                      value={clientes} onChange={e => setClientes(e.target.value)}
+                      placeholder={'[Lubrizol] ajuste de banner\n[Infra] moodboard home'}
+                      rows={3}
+                      className="w-full bg-transparent border-none outline-none text-[12px] font-normal leading-[1.65] resize-none transition-colors duration-500"
+                      style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink }}
+                    />
+                  </div>
+
+                  {/* EXTRAS */}
+                  <div className="rounded-2xl p-[18px] transition-colors duration-500"
+                    style={{ background: surface, border: `1px solid ${border}` }}>
+                    <p className="text-[9px] font-bold tracking-[0.14em] uppercase mb-1" style={{ color: ink3 }}>
+                      Espaço para extras
+                    </p>
+                    <p className="text-[9px] mb-2 leading-relaxed" style={{ color: inkHint }}>
+                      Selecione ou descreva
+                    </p>
+
+                    {/* CHIPS */}
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {EXTRAS_OPCOES.map(op => (
+                        <button
+                          key={op}
+                          onClick={() => toggleChip(op)}
+                          className="text-[8.5px] font-bold tracking-wide px-2 py-1 rounded-full border transition-all duration-200 cursor-pointer"
+                          style={{
+                            background: extrasChips.includes(op) ? '#8B5CF6' : 'transparent',
+                            borderColor: extrasChips.includes(op) ? '#8B5CF6' : border2,
+                            color: extrasChips.includes(op) ? 'white' : inkHint,
+                          }}>
+                          {op}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Campo livre */}
+                    <textarea
+                      value={extras} onChange={e => setExtras(e.target.value)}
+                      placeholder="outro..."
+                      rows={2}
+                      className="w-full bg-transparent border-none outline-none text-[12px] font-normal leading-[1.65] resize-none transition-colors duration-500"
+                      style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink }}
+                    />
+                  </div>
+                </div>
+
+                {/* SUBMIT */}
+                <div style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.43s both' }}>
+                  <button onClick={handleSubmit} disabled={!podeEnviar || loading}
+                    className="w-full rounded-2xl px-6 py-[18px] flex items-center justify-between relative overflow-hidden group transition-all duration-300"
+                    style={{
+                      background: '#8B5CF6',
+                      opacity: podeEnviar && !loading ? 1 : 0.2,
+                      cursor: podeEnviar && !loading ? 'pointer' : 'not-allowed',
+                    }}>
+                    <span className="text-[14px] font-bold tracking-[0.05em] text-white relative z-10">
+                      {loading ? 'Enviando...' : estado === 'editar' ? 'Atualizar sinal' : 'Dar o sinal'}
+                    </span>
+                    <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-[16px] text-white transition-transform duration-300 group-hover:rotate-45 relative z-10">↗</div>
+                  </button>
+
+                  <p className="mt-3 text-[9.5px] text-center leading-[1.8]" style={{ color: inkHint }}>
+                    Ferramenta de uso voluntário entre prestadores de serviço independentes.<br />
+                    Não constitui controle de jornada, registro de ponto ou reconhecimento de vínculo empregatício.
+                  </p>
+                </div>
+              </>
             )}
 
             {/* IDLE */}
-            {(estado === 'idle' || estado === 'buscando') && (
+            {estado === 'idle' && (
               <div className="text-center py-8" style={{ animation: 'rise 0.4s cubic-bezier(0.16,1,0.3,1) both' }}>
-                <p className="text-[11px] font-medium transition-colors duration-500" style={{ color: inkHint }}>
-                  {estado === 'buscando' ? 'Verificando seu sinal...' : 'Digite seu nome para começar'}
+                <p className="text-[11px] font-medium" style={{ color: inkHint }}>
+                  Digite seu nome para começar
                 </p>
               </div>
             )}
@@ -367,8 +470,8 @@ export default function Home() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
         * { font-family: 'Space Grotesk', sans-serif; }
-        input::placeholder { color: ${border2}; }
-        textarea::placeholder { color: ${border2}; }
+        input::placeholder { color: ${inkPlaceholder}; }
+        textarea::placeholder { color: ${inkPlaceholder}; }
         @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes popIn { from { opacity: 0; transform: scale(0.5) rotate(-60deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
