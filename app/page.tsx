@@ -12,13 +12,8 @@ const LEVELS = [
 ]
 
 const EXTRAS_OPCOES = [
-  'Ajuste simples',
-  'Ajuste carrossel',
-  'Troca de imagem',
-  'Ajuste de vídeo',
-  'Criação de moodboard',
-  'Apresentação',
-  'BV institucional',
+  'Ajuste simples', 'Ajuste carrossel', 'Troca de imagem',
+  'Ajuste de vídeo', 'Criação de moodboard', 'Apresentação', 'BV institucional',
 ]
 
 function getWeekStr() {
@@ -39,11 +34,8 @@ function edicaoBloqueadaPorData() {
 type Estado = 'idle' | 'buscando' | 'novo' | 'editar' | 'bloqueado' | 'bloqueado-data' | 'sucesso'
 
 type SinalExistente = {
-  nivel: number
-  clientes: string
-  extras: string
-  versao: string
-  parceiro: boolean
+  nivel: number; clientes: string; extras: string
+  versao: string; parceiro: boolean
 }
 
 export default function Home() {
@@ -63,18 +55,29 @@ export default function Home() {
   const nomeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const L = nivel !== null ? LEVELS[nivel] : null
 
+  // Lê tema salvo
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('sinal_theme') as 'dark' | 'light' | null
+    if (savedTheme) setTheme(savedTheme)
+  }, [])
+
   const isDark = theme === 'dark'
   const ink = isDark ? '#F2F2F2' : '#111111'
-  const ink2 = isDark ? '#AAAAAA' : '#666666'       // secundário — corrigido
-  const ink3 = isDark ? '#888888' : '#888888'        // labels — corrigido
-  const inkHint = isDark ? '#777777' : '#AAAAAA'     // hints — corrigido
-  const inkPlaceholder = isDark ? '#555555' : '#BBBBBB' // placeholders — corrigido
+  const ink2 = isDark ? '#AAAAAA' : '#666666'
+  const ink3 = isDark ? '#888888' : '#888888'
+  const inkHint = isDark ? '#777777' : '#AAAAAA'
+  const inkPlaceholder = isDark ? '#555555' : '#BBBBBB'
   const surface = isDark ? '#111111' : '#FFFFFF'
   const border = isDark ? '#242424' : '#E8E8E4'
   const border2 = isDark ? '#303030' : '#D8D8D4'
   const bgPage = isDark ? '#0A0A0A' : '#F5F5F3'
 
-  // Busca sinal ao digitar nome
+  function toggleTheme() {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    localStorage.setItem('sinal_theme', next)
+  }
+
   useEffect(() => {
     if (nomeTimer.current) clearTimeout(nomeTimer.current)
     if (nome.trim().length < 2) { setEstado('idle'); setSinalAtual(null); return }
@@ -108,7 +111,6 @@ export default function Home() {
     )
   }
 
-  // Monta o campo extras combinando chips + texto livre
   function getExtrasValue() {
     const chipStr = extrasChips.join(' · ')
     const livreTrimmed = extras.trim()
@@ -132,16 +134,13 @@ export default function Home() {
       const res = await fetch('/api/checkin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nome: identificador,
-          semana,
-          nivel,
-          clientes,
-          extras: getExtrasValue(),
-        }),
+        body: JSON.stringify({ nome: identificador, semana, nivel, clientes, extras: getExtrasValue() }),
       })
       const data = await res.json()
       if (data.success) {
+        // Salva identificador no localStorage para o dashboard verificar
+        localStorage.setItem('sinal_nome', identificador)
+        localStorage.setItem('sinal_semana', semana)
         setResultado({ parceiro: data.parceiro, versao: data.versao })
         setEstado('sucesso')
       }
@@ -155,10 +154,9 @@ export default function Home() {
   const mostrarFormulario = estado === 'novo' || estado === 'editar'
 
   return (
-    <main
-      style={{ background: bgPage, minHeight: '100vh' }}
-      className="flex items-center justify-center px-6 py-12 relative overflow-hidden transition-colors duration-500"
-    >
+    <main style={{ background: bgPage, minHeight: '100vh' }}
+      className="flex items-center justify-center px-6 py-12 relative overflow-hidden transition-colors duration-500">
+
       {/* Glow */}
       <div className="fixed pointer-events-none rounded-full transition-all duration-1000"
         style={{ width: 800, height: 800, top: -350, right: -300, background: `radial-gradient(circle, ${glowColor} 0%, transparent 70%)` }} />
@@ -169,8 +167,9 @@ export default function Home() {
 
       <div className="w-full max-w-[500px] relative z-10">
 
-        {/* TOPBAR */}
-        <div className="flex items-center justify-between mb-16" style={{ animation: 'slideDown 0.5s cubic-bezier(0.16,1,0.3,1) 0.05s both' }}>
+        {/* TOPBAR — sem switch */}
+        <div className="flex items-center justify-between mb-16"
+          style={{ animation: 'slideDown 0.5s cubic-bezier(0.16,1,0.3,1) 0.05s both' }}>
           <div>
             <span style={{ color: ink }} className="text-[13px] font-bold tracking-[0.16em] uppercase transition-colors duration-500">
               SINAL<span style={{ color: '#A78BFA' }}>.</span>
@@ -179,32 +178,21 @@ export default function Home() {
               Dar o sinal
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-semibold tracking-wide transition-colors duration-500"
-              style={{ background: surface, border: `1px solid ${border2}`, color: ink3 }}>
-              <span className="w-[5px] h-[5px] rounded-full bg-[#A78BFA] animate-pulse" />
-              {semana}
-            </div>
-            {/* Theme switch — menos proeminente */}
-            <button
-              onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-              className="relative w-[36px] h-[20px] rounded-full cursor-pointer transition-all duration-400 opacity-40 hover:opacity-80"
-              style={{ background: surface, border: `1px solid ${border2}` }}
-              title="Alternar tema"
-            >
-              <div className="absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full flex items-center justify-center text-[8px] transition-all duration-[350ms]"
-                style={{ background: ink, color: bgPage, transform: !isDark ? 'translateX(16px)' : 'translateX(0)' }}>
-                {isDark ? '☽' : '☀'}
-              </div>
-            </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-semibold tracking-wide transition-colors duration-500"
+            style={{ background: surface, border: `1px solid ${border2}`, color: ink3 }}>
+            <span className="w-[5px] h-[5px] rounded-full bg-[#A78BFA] animate-pulse" />
+            {semana}
           </div>
         </div>
 
         {/* SUCESSO */}
         {estado === 'sucesso' && resultado && (
-          <div className="flex flex-col items-center text-center gap-5 py-16" style={{ animation: 'rise 0.5s cubic-bezier(0.16,1,0.3,1) both' }}>
+          <div className="flex flex-col items-center text-center gap-5 py-16"
+            style={{ animation: 'rise 0.5s cubic-bezier(0.16,1,0.3,1) both' }}>
             <div className="w-[76px] h-[76px] rounded-full border-[1.5px] flex items-center justify-center text-[1.8rem]"
-              style={{ borderColor: L?.color, color: L?.color, animation: 'popIn 0.55s cubic-bezier(0.16,1,0.3,1) both' }}>✦</div>
+              style={{ borderColor: L?.color, color: L?.color, animation: 'popIn 0.55s cubic-bezier(0.16,1,0.3,1) both' }}>
+              ✦
+            </div>
             <div style={{ color: ink }} className="text-[2rem] font-bold tracking-tight">
               Sinal {resultado.versao === 'atualizado' ? 'atualizado.' : 'enviado.'}
             </div>
@@ -222,7 +210,6 @@ export default function Home() {
                 Você ainda pode atualizar seu sinal uma vez até quarta-feira.
               </p>
             )}
-            {/* Radar só aparece APÓS o sinal */}
             <a href="/dashboard"
               className="mt-4 text-[11px] font-bold tracking-[0.1em] uppercase transition-all duration-200 cursor-pointer px-5 py-2.5 rounded-xl border"
               style={{ color: ink3, borderColor: border2, background: surface }}>
@@ -247,8 +234,6 @@ export default function Home() {
                 style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink, caretColor: '#A78BFA' }}
               />
               <div className="mt-4 h-px" style={{ background: border2 }} />
-
-              {/* Apelido — aparece após digitar nome */}
               {nome.trim().length >= 2 && (
                 <div className="mt-3" style={{ animation: 'rise 0.3s cubic-bezier(0.16,1,0.3,1) both' }}>
                   <input
@@ -262,9 +247,10 @@ export default function Home() {
               )}
             </div>
 
-            {/* ESTADO — buscando */}
+            {/* BUSCANDO */}
             {estado === 'buscando' && (
-              <div className="mb-8 flex items-center gap-3" style={{ animation: 'rise 0.3s cubic-bezier(0.16,1,0.3,1) both' }}>
+              <div className="mb-8 flex items-center gap-3"
+                style={{ animation: 'rise 0.3s cubic-bezier(0.16,1,0.3,1) both' }}>
                 <span className="w-2 h-2 rounded-full bg-[#A78BFA] animate-pulse flex-shrink-0" />
                 <p className="text-[13px] font-semibold" style={{ color: '#A78BFA' }}>
                   Verificando seu sinal desta semana...
@@ -274,7 +260,8 @@ export default function Home() {
 
             {/* BLOQUEADO — já editou */}
             {estado === 'bloqueado' && sinalAtual && (
-              <div className="mb-8 rounded-2xl p-5 border" style={{ background: LEVELS[sinalAtual.nivel].bg, borderColor: LEVELS[sinalAtual.nivel].color, animation: 'rise 0.4s cubic-bezier(0.16,1,0.3,1) both' }}>
+              <div className="mb-8 rounded-2xl p-5 border"
+                style={{ background: LEVELS[sinalAtual.nivel].bg, borderColor: LEVELS[sinalAtual.nivel].color, animation: 'rise 0.4s cubic-bezier(0.16,1,0.3,1) both' }}>
                 <p className="text-[9px] font-bold tracking-[0.12em] uppercase mb-3" style={{ color: LEVELS[sinalAtual.nivel].color }}>
                   Sinal desta semana · edição já utilizada
                 </p>
@@ -291,7 +278,8 @@ export default function Home() {
 
             {/* BLOQUEADO — passou da quarta */}
             {estado === 'bloqueado-data' && sinalAtual && (
-              <div className="mb-8 rounded-2xl p-5 border" style={{ background: LEVELS[sinalAtual.nivel].bg, borderColor: LEVELS[sinalAtual.nivel].color, animation: 'rise 0.4s cubic-bezier(0.16,1,0.3,1) both' }}>
+              <div className="mb-8 rounded-2xl p-5 border"
+                style={{ background: LEVELS[sinalAtual.nivel].bg, borderColor: LEVELS[sinalAtual.nivel].color, animation: 'rise 0.4s cubic-bezier(0.16,1,0.3,1) both' }}>
                 <p className="text-[9px] font-bold tracking-[0.12em] uppercase mb-3" style={{ color: LEVELS[sinalAtual.nivel].color }}>
                   Sinal desta semana · edição encerrada
                 </p>
@@ -299,8 +287,9 @@ export default function Home() {
                   <span className="text-[3rem] font-bold leading-none" style={{ color: LEVELS[sinalAtual.nivel].color }}>{sinalAtual.nivel}</span>
                   <div>
                     <p className="text-[13px] font-bold" style={{ color: LEVELS[sinalAtual.nivel].color }}>{LEVELS[sinalAtual.nivel].name}</p>
-                    <p className="text-[11px] mt-1" style={{ color: ink2 }}>Edições encerradas após quarta-feira.</p>
-                    <p className="text-[10px] mt-1 font-semibold" style={{ color: LEVELS[sinalAtual.nivel].color }}>Novo ciclo começa na próxima segunda.</p>
+                    <p className="text-[11px] mt-1" style={{ color: ink2 }}>A janela de atualização encerrou na quarta.</p>
+                    <p className="text-[10px] mt-1" style={{ color: inkHint }}>Mas você ainda pode ver o radar e pedir ajuda diretamente.</p>
+                    <a href="/dashboard" className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wide uppercase mt-2" style={{ color: LEVELS[sinalAtual.nivel].color }}>Ver radar →</a>
                   </div>
                 </div>
               </div>
@@ -308,7 +297,8 @@ export default function Home() {
 
             {/* EDIÇÃO DISPONÍVEL */}
             {estado === 'editar' && sinalAtual && (
-              <div className="mb-6 rounded-2xl p-5 border" style={{ background: LEVELS[sinalAtual.nivel].bg, borderColor: LEVELS[sinalAtual.nivel].color, animation: 'rise 0.4s cubic-bezier(0.16,1,0.3,1) both' }}>
+              <div className="mb-6 rounded-2xl p-5 border"
+                style={{ background: LEVELS[sinalAtual.nivel].bg, borderColor: LEVELS[sinalAtual.nivel].color, animation: 'rise 0.4s cubic-bezier(0.16,1,0.3,1) both' }}>
                 <p className="text-[9px] font-bold tracking-[0.12em] uppercase mb-3" style={{ color: LEVELS[sinalAtual.nivel].color }}>
                   Seu sinal desta semana
                 </p>
@@ -317,8 +307,8 @@ export default function Home() {
                     <span className="text-[2.8rem] font-bold leading-none" style={{ color: LEVELS[sinalAtual.nivel].color }}>{sinalAtual.nivel}</span>
                     <div>
                       <p className="text-[13px] font-bold" style={{ color: LEVELS[sinalAtual.nivel].color }}>{LEVELS[sinalAtual.nivel].name}</p>
-                      <p className="text-[11px] mt-1" style={{ color: ink2 }}>Sua agenda mudou? Atualize até quarta.</p>
-                      <p className="text-[10px] mt-0.5" style={{ color: inkHint }}>Entregas, entradas e saídas de projeto contam.</p>
+                      <p className="text-[11px] mt-1" style={{ color: ink2 }}>O que mudou desde segunda?</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: inkHint }}>Entregas, novos jobs, mudanças de cliente — tudo conta.</p>
                     </div>
                   </div>
                   <button onClick={carregarSinalAtual}
@@ -335,9 +325,9 @@ export default function Home() {
               <>
                 <div className="mb-4" style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.25s both' }}>
                   <p className="text-[9px] font-bold tracking-[0.16em] uppercase mb-3" style={{ color: ink3 }}>
-                    {estado === 'editar' ? 'Atualizar — como está sua semana' : 'Como está sua semana'}
+                    {estado === 'editar' ? 'O que mudou desde segunda?' : 'Como está sua semana'}
                   </p>
-                  <div className="flex gap-[5px] p-[5px] rounded-[18px] transition-colors duration-500"
+                  <div className="flex gap-[5px] p-[5px] rounded-[18px]"
                     style={{ background: surface, border: `1px solid ${border}` }}>
                     {LEVELS.map((lv) => (
                       <button key={lv.num} onClick={() => selectLevel(lv.num)}
@@ -355,9 +345,8 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* STATE BOX */}
                   {nivel !== null && L && (
-                    <div className="mt-[10px] rounded-2xl p-5 border flex items-center gap-5 transition-all duration-400"
+                    <div className="mt-[10px] rounded-2xl p-5 border flex items-center gap-5"
                       style={{ background: L.bg, borderColor: L.color, animation: 'rise 0.35s cubic-bezier(0.16,1,0.3,1) both' }}>
                       <span className="text-[3.5rem] font-bold leading-none flex-shrink-0 w-[60px] text-center" style={{ color: L.color }}>{nivel}</span>
                       <div className="w-px h-10 flex-shrink-0" style={{ background: border2 }} />
@@ -374,42 +363,32 @@ export default function Home() {
                 </div>
 
                 {/* CAMPOS */}
-                <div className="grid grid-cols-2 gap-2 mb-5" style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.35s both' }}>
-
-                  {/* PROJETOS EM ANDAMENTO */}
-                  <div className="rounded-2xl p-[18px] transition-colors duration-500"
-                    style={{ background: surface, border: `1px solid ${border}` }}>
+                <div className="grid grid-cols-2 gap-2 mb-5"
+                  style={{ animation: 'rise 0.55s cubic-bezier(0.16,1,0.3,1) 0.35s both' }}>
+                  <div className="rounded-2xl p-[18px]" style={{ background: surface, border: `1px solid ${border}` }}>
                     <p className="text-[9px] font-bold tracking-[0.14em] uppercase mb-1" style={{ color: ink3 }}>
                       Projetos em andamento
                     </p>
                     <p className="text-[9px] mb-2 leading-relaxed" style={{ color: inkHint }}>
                       Formato: [Cliente] job resumido
                     </p>
-                    <textarea
-                      value={clientes} onChange={e => setClientes(e.target.value)}
+                    <textarea value={clientes} onChange={e => setClientes(e.target.value)}
                       placeholder={'[Lubrizol] ajuste de banner\n[Infra] moodboard home'}
                       rows={3}
-                      className="w-full bg-transparent border-none outline-none text-[12px] font-normal leading-[1.65] resize-none transition-colors duration-500"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink }}
-                    />
+                      className="w-full bg-transparent border-none outline-none text-[12px] font-normal leading-[1.65] resize-none"
+                      style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink }} />
                   </div>
 
-                  {/* EXTRAS */}
-                  <div className="rounded-2xl p-[18px] transition-colors duration-500"
-                    style={{ background: surface, border: `1px solid ${border}` }}>
+                  <div className="rounded-2xl p-[18px]" style={{ background: surface, border: `1px solid ${border}` }}>
                     <p className="text-[9px] font-bold tracking-[0.14em] uppercase mb-1" style={{ color: ink3 }}>
                       Espaço para extras
                     </p>
                     <p className="text-[9px] mb-2 leading-relaxed" style={{ color: inkHint }}>
                       Selecione ou descreva
                     </p>
-
-                    {/* CHIPS */}
                     <div className="flex flex-wrap gap-1 mb-2">
                       {EXTRAS_OPCOES.map(op => (
-                        <button
-                          key={op}
-                          onClick={() => toggleChip(op)}
+                        <button key={op} onClick={() => toggleChip(op)}
                           className="text-[8.5px] font-bold tracking-wide px-2 py-1 rounded-full border transition-all duration-200 cursor-pointer"
                           style={{
                             background: extrasChips.includes(op) ? '#8B5CF6' : 'transparent',
@@ -420,15 +399,11 @@ export default function Home() {
                         </button>
                       ))}
                     </div>
-
-                    {/* Campo livre */}
-                    <textarea
-                      value={extras} onChange={e => setExtras(e.target.value)}
+                    <textarea value={extras} onChange={e => setExtras(e.target.value)}
                       placeholder="outro..."
                       rows={2}
-                      className="w-full bg-transparent border-none outline-none text-[12px] font-normal leading-[1.65] resize-none transition-colors duration-500"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink }}
-                    />
+                      className="w-full bg-transparent border-none outline-none text-[12px] font-normal leading-[1.65] resize-none"
+                      style={{ fontFamily: "'Space Grotesk', sans-serif", color: ink }} />
                   </div>
                 </div>
 
@@ -442,11 +417,10 @@ export default function Home() {
                       cursor: podeEnviar && !loading ? 'pointer' : 'not-allowed',
                     }}>
                     <span className="text-[14px] font-bold tracking-[0.05em] text-white relative z-10">
-                      {loading ? 'Enviando...' : estado === 'editar' ? 'Atualizar sinal' : 'Dar o sinal'}
+                      {loading ? 'Enviando...' : estado === 'editar' ? 'Atualizar o sinal' : 'Dar o sinal'}
                     </span>
                     <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-[16px] text-white transition-transform duration-300 group-hover:rotate-45 relative z-10">↗</div>
                   </button>
-
                   <p className="mt-3 text-[9.5px] text-center leading-[1.8]" style={{ color: inkHint }}>
                     Ferramenta de uso voluntário entre prestadores de serviço independentes.<br />
                     Não constitui controle de jornada, registro de ponto ou reconhecimento de vínculo empregatício.
@@ -465,6 +439,26 @@ export default function Home() {
             )}
           </>
         )}
+
+        {/* RODAPÉ — switch de tema aqui */}
+        <div className="flex items-center justify-between mt-12 pt-5"
+          style={{ borderTop: `1px solid ${border}` }}>
+          <a href="/dashboard"
+            className="text-[10px] font-bold tracking-[0.1em] uppercase transition-colors duration-200"
+            style={{ color: inkHint }}>
+            Radar da equipe →
+          </a>
+          <button onClick={toggleTheme}
+            className="relative w-[36px] h-[20px] rounded-full cursor-pointer transition-all duration-400"
+            style={{ background: surface, border: `1px solid ${border2}` }}
+            title="Alternar tema">
+            <div className="absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full flex items-center justify-center text-[8px] transition-all duration-[350ms]"
+              style={{ background: ink, color: bgPage, transform: !isDark ? 'translateX(16px)' : 'translateX(0)' }}>
+              {isDark ? '☽' : '☀'}
+            </div>
+          </button>
+        </div>
+
       </div>
 
       <style>{`
